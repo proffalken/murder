@@ -19,6 +19,18 @@ namespace :murder do
   Compresses the directory specified by the passed-in argument 'files_path' and creates a .torrent file identified by the 'tag' argument. Be sure to use the same 'tag' value with any following commands. Any .git directories will be skipped. Once completed, the .torrent will be downloaded to your local /tmp/TAG.tgz.torrent.
   DESC
   task :create_torrent, :roles => :seeder do
+    # Get the files to exclude and build them into a string to append to the tar command (copied shamlessly from capistrano's "copy_exclude" code!)
+    if copy_exclude.any?
+      logger.debug "processing exclusions..."
+      if copy_exclude.any?
+        copy_exclude.each do |pattern|
+          exclude_list = "--exclude #{Dir.glob(File.join(destination, pattern), File::FNM_DOTMATCH)}"
+          # avoid the /.. trap that excludes the parent directories
+          exclude_list.delete_if { |dir| dir =~ /\/\.\.$/ }
+        end
+      end
+
+
     require_tag
     if !(seeder_files_path = (default_seeder_files_path if default_seeder_files_path != "") || ENV['files_path'])
       puts "You must specify a 'files_path' parameter with the directory on the seeder which contains the files to distribute"
@@ -28,7 +40,7 @@ namespace :murder do
     if ENV['path_is_file']
       run "cp \"#{seeder_files_path}\" #{filename}"
     else
-      run "tar -c -z -C #{seeder_files_path}/ -f #{filename} --exclude \".git*\" ."
+      run "tar -c -z -C #{seeder_files_path}/ -f #{filename} #{exclude_list} ."
     end
 
     tracker = find_servers(:roles => :tracker).first
